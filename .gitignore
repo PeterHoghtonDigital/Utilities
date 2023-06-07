@@ -1,0 +1,10 @@
+# Directories
+
+.vs/
+x64/
+Utilities/x64/
+
+# Files
+
+*.user
+*.exe
