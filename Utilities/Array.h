@@ -25,6 +25,9 @@ template<typename T>
 class Array
 {
 public:
+	// Default constructor
+	Array() = delete;
+
 	// Constructor with size argument
 	Array(const size_t size) : m_data(new T[size]), m_size(size) {}
 
@@ -166,31 +169,24 @@ public:
 
 	const T* begin() const
 	{
-		return m_data;
+		return const_cast<Array<T>*>(this)->begin();
 	}
 
 	const T* end() const
 	{
-		return m_data + m_size;
+		return const_cast<Array<T>*>(this)->end();
 	}
 
 	// Returns true if the array contains the given value
 	bool Contains(const T& value, const size_t offset = 0) const
 	{
-		return Contains([&](const T& element) { return element == value; }, offset);
+		return Find([&](const T& element) { return element == value; }, offset);
 	}
 
 	// Returns true if the array contains nullptr
 	bool Contains(std::nullptr_t, const size_t offset = 0) const
 	{
-		return Contains([](const T& element) { return element == nullptr; }, offset);
-	}
-
-	// Returns true if the given predicate returns true for any element in the array
-	template<typename Predicate>
-	bool Contains(const Predicate& predicate, const size_t offset = 0) const
-	{
-		return Find(predicate, offset);
+		return Find([](const T& element) { return element == nullptr; }, offset);
 	}
 
 	// Returns the number of occurrences of the given value in the array
@@ -297,9 +293,9 @@ public:
 	// Note: Make sure to seed the random number generator (e.g. using srand) before calling this method to ensure proper randomness.
 	void Shuffle(const size_t offset = 0) 
 	{
-		for (size_t i = m_size - 1; i > offset; --i)
+		for (size_t i = offset; i < m_size - 1; ++i)
 		{
-			size_t j = offset + rand() % (i - offset + 1);
+			size_t j = i + rand() % (m_size - i);
 			Swap(i, j);
 		}
 	}
@@ -335,9 +331,9 @@ public:
 			throw std::out_of_range("Array index out of bounds");
 		}
 		
-		const T temp = m_data[index1];
-		m_data[index1] = m_data[index2];
-		m_data[index2] = temp;
+		const T temp = std::move(m_data[index1]);
+		m_data[index1] = std::move(m_data[index2]);
+		m_data[index2] = std::move(temp);
 	}
 
 private:

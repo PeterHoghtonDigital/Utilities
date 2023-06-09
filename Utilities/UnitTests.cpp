@@ -29,6 +29,7 @@ void TestArray()
 
 	// Test move constructor
 	Array<int> d = std::move(c);
+	assert(c.Size() == 0);
 	assert(d.Size() == 3);
 	assert(d[0] == 1);
 	assert(d[1] == 2);
@@ -45,6 +46,7 @@ void TestArray()
 	// Test move assignment operator
 	Array<int> f(0);
 	f = std::move(e);
+	assert(e.Size() == 0);
 	assert(f.Size() == 3);
 	assert(f[0] == 1);
 	assert(f[1] == 2);
@@ -169,6 +171,7 @@ void TestArrayWithPointers()
 
 	// Test move constructor
 	Array<int*> d = std::move(c);
+	assert(c.Size() == 0);
 	assert(d.Size() == 3);
 	assert(*d[0] == 1);
 	assert(*d[1] == 2);
@@ -185,6 +188,7 @@ void TestArrayWithPointers()
 	// Test move assignment operator
 	Array<int*> f(0);
 	f = std::move(e);
+	assert(e.Size() == 0);
 	assert(f.Size() == 3);
 	assert(*f[0] == 1);
 	assert(*f[1] == 2);
