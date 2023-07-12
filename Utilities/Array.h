@@ -1,18 +1,21 @@
 /* 
  * Array.h
  * 
- * This custom static array data structure offers several advantages over c-style arrays such as enhanced functionality, safety, and ease of use. 
- * It provides additional methods, automated bounds checking, and abstracts away low-level memory management.
+ * This custom abstract array interface provides common functionality for array data structures.
  * 
- * DISCLAIMER: This implementation is intended for portfolio/education purposes only. 
- * For production use, it is recommended to use std::array instead.
- *
+ * For implementations of this interface, see StaticArray.h and DynamicArray.h.
+ *   
+ * DISCLAIMER: This implementation is intended for portfolio/education purposes only.
+ * For production use, it is recommended to use std::array or std::vector instead.
+ *   
  * © Copyright Peter Hoghton. All rights reserved.
  */
 
 #pragma once
 
+#include <limits>
 #include <stdexcept>
+#include <type_traits>
 
 // Enum for specifying the sort order (ascending or descending)
 enum class SortOrder
@@ -26,110 +29,35 @@ class Array
 {
 public:
 	// Default constructor
-	Array() = delete;
+	Array() = default;
 
-	// Constructor with size argument
-	Array(const size_t size) : m_data(new T[size]), m_size(size) {}
-
-	// Constructor with initializer list
-	Array(std::initializer_list<T> list) : m_data(new T[list.size()]), m_size(list.size())
-	{
-		size_t index = 0;
-		for(const T& element : list)
-		{
-			m_data[index++] = element;
-		}
-	}
-
-	// Copy constructor
-	Array(const Array& other) : m_data(new T[other.m_size]), m_size(other.m_size)
-	{
-		for (size_t i = 0; i < m_size; ++i)
-		{
-			m_data[i] = other.m_data[i];
-		}
-	}
-
-	// Move constructor
-	Array(Array&& other) noexcept : m_data(other.m_data), m_size(other.m_size)
-	{
-		other.m_data = nullptr;
-		other.m_size = 0;
-	}
-
-	// Destructor
-	~Array()
-	{
-		delete[] m_data;
-	}
-
-	// Copy assignment operator
-	Array& operator=(const Array& other)
-	{
-		if (this != &other) // Check for self-assignment
-		{
-			delete[] m_data;
-			m_data = new T[other.m_size];
-			m_size = other.m_size;
-			for (size_t i = 0; i < m_size; ++i)
-			{
-				m_data[i] = other.m_data[i];
-			}	
-		}
-		return *this;
-	}
-
-	// Move assignment operator
-	Array& operator=(Array&& other) noexcept
-	{
-		if (this != &other) // Check for self-assignment
-		{
-			delete[] m_data;
-			m_data = other.m_data;
-			m_size = other.m_size;
-			other.m_data = nullptr;
-			other.m_size = 0;
-		}
-		return *this;
-	}
+	// Default destructor
+	virtual ~Array() = default;
 
 	// Index operator
 	T& operator[](const size_t index)
 	{
-		if (index >= m_size)
-		{
-			throw std::out_of_range("Array index out of bounds");
-		}
-		return m_data[index];
+		BoundsCheck(index);
+		return Data()[index];
 	}
 
-	// Const version of index operator
+	// Index operator (const version)
 	const T& operator[](const size_t index) const
 	{
-		if (index >= m_size)
-		{
-			throw std::out_of_range("Array index out of bounds");
-		}
-		return m_data[index];
+		return const_cast<Array<T>*>(this)->operator[](index);
 	}
 
 	// Equality operator
 	bool operator==(const Array& other) const
 	{
-		if (m_size != other.m_size)
-		{
-			return false;
-		}
+		return Equals(other.Data(), other.Size());
+	}
 
-		for (size_t i = 0; i < m_size; ++i)
-		{
-			if (m_data[i] != other.m_data[i])
-			{
-				return false;
-			}
-		}
-
-		return true;
+	// Equality operator with c-style array
+	template <size_t M>
+	bool operator==(const T(&other)[M]) const
+	{
+		return Equals(other, M);
 	}
 
 	// Inequality operator
@@ -138,33 +66,22 @@ public:
 		return !(*this == other);
 	}
 
-	// Addition operator - concatenates the two arrays
-	Array<T> operator+(const Array<T>& other) const
+	// Inequality operator with c-style array
+	template <size_t M>
+	bool operator!=(const T(&other)[M]) const
 	{
-		Array<T> result(m_size + other.m_size);
-
-		for (size_t i = 0; i < m_size; ++i)
-		{
-			result[i] = m_data[i];
-		}
-
-		for (size_t i = 0; i < other.m_size; ++i)
-		{
-			result[m_size + i] = other.m_data[i];
-		}
-
-		return result;
+		return !(*this == other);
 	}
 
 	// Range-based for loop support
 	T* begin()
 	{
-		return m_data;
+		return Data();
 	}
 
 	T* end()
 	{
-		return m_data + m_size;
+		return Data() + Size();
 	}
 
 	const T* begin() const
@@ -178,37 +95,45 @@ public:
 	}
 
 	// Returns true if the array contains the given value
-	bool Contains(const T& value, const size_t offset = 0) const
+	bool Contains(const T& value, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		return Find([&](const T& element) { return element == value; }, offset);
+		return Find([&](const T& element) { return element == value; }, from, to);
 	}
 
-	// Returns true if the array contains nullptr
-	bool Contains(std::nullptr_t, const size_t offset = 0) const
+	// Deep copies the elements from the raw array
+	// Note: Remaining elements are left uninitialized.
+	virtual bool Copy(const T* data, const size_t size, const size_t offset = 0)
 	{
-		return Find([](const T& element) { return element == nullptr; }, offset);
+		return CopyOrMove(data, size, Data(), Bounds(), offset);
 	}
 
 	// Returns the number of occurrences of the given value in the array
-	size_t Count(const T& value, const size_t offset = 0) const
+	size_t Count(const T& value, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		return Count([&](const T& element) { return element == value; }, offset);
+		return Count([&](const T& element) { return element == value; }, from, to);
 	}
 
 	// Returns the number of occurrences of nullptr in the array
-	size_t Count(std::nullptr_t, const size_t offset = 0) const
+	size_t Count(std::nullptr_t, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		return Count([&](const T& element) { return element == nullptr; }, offset);
+		return Count([](const T& element) { return element == nullptr; }, from, to);
 	}
 
-	// Returns the number of elements in the array that satisfy the given predicate
+	// Returns the number of elements in the array that satisfy the predicate
 	template<typename Predicate>
-	size_t Count(const Predicate& predicate, const size_t offset = 0) const
+	size_t Count(const Predicate& predicate, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		size_t count = 0;
-		for (size_t i = offset; i < m_size; ++i)
+		if (Size() == 0)
 		{
-			if (predicate(m_data[i]))
+			return 0;
+		}
+
+		const size_t size = (to == s_maxSize) ? Size() : to;
+		BoundsCheck(size - 1);
+		size_t count = 0;
+		for (size_t i = from; i < size; ++i)
+		{
+			if (predicate(Data()[i]))
 			{
 				++count;
 			}
@@ -216,178 +141,401 @@ public:
 		return count;
 	}
 
-	// Fills the array with the given value
-	void Fill(const T& value, const size_t offset = 0)
+	// Returns a pointer to the first element of the array
+	virtual T* Data() = 0;
+
+	// Returns a pointer to the first element of the array (const version)
+	virtual const T* Data() const = 0;
+
+	// Deletes all elements in the array
+	// Note: Non-pointer elements will automatically be removed instead.
+	bool DeleteAll()
 	{
-		for (size_t i = offset; i < m_size; ++i)
+		bool dirty = false;
+		if constexpr (std::is_pointer_v<T>)
 		{
-			m_data[i] = value;
+			for (T& element : *this)
+			{
+				delete element;
+				element = nullptr;
+			}
+			dirty = Size() > 0;
 		}
+		return RemoveAll() || dirty;
+	}
+
+	// Equality comparison with raw array
+	bool Equals(const T* data, const size_t size) const
+	{
+		return Equals(Data(), Size(), data, size);
+	}
+
+	// Fills the array with the given value
+	// Note: Remaining elements are left uninitialized.
+	virtual bool Fill(const T& value = T{}, const size_t from = 0, const size_t to = s_maxSize)
+	{
+		if (Bounds() == 0)
+		{
+			return false;
+		}
+
+		const size_t size = (to == s_maxSize) ? Bounds() : to;
+		BoundsCheck(size - 1);
+		for (size_t i = from; i < size; ++i)
+		{
+			Data()[i] = value;
+		}
+		return (size - from) > 0;
 	}
 
 	// Returns a pointer to the first element in the array that satisfies the predicate, or nullptr if not found
 	template<typename Predicate>
-	T* Find(const Predicate& predicate, const size_t offset = 0) const
+	const T* Find(const Predicate& predicate, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		for (size_t i = offset; i < m_size; ++i)
+		if (Size() == 0)
 		{
-			if (predicate(m_data[i]))
+			return nullptr;
+		}
+
+		const size_t size = (to == s_maxSize) ? Size() : to;
+		BoundsCheck(size - 1);
+		for (size_t i = from; i < size; ++i)
+		{
+			if (predicate(Data()[i]))
 			{
-				return &m_data[i];
+				return &Data()[i];
 			}
 		}
 		return nullptr;
 	}
 
 	// Returns the index of the first occurrence of the given value in the array, or the array size if not found
-	size_t IndexOf(const T& value, const size_t offset = 0) const
+	size_t IndexOf(const T& value, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		return IndexOf([&](const T& element) { return element == value; }, offset);
+		return IndexOf([&](const T& element) { return element == value; }, from, to);
 	}
 
 	// Returns the index of the first occurrence of nullptr in the array, or the array size if not found
-	size_t IndexOf(std::nullptr_t, const size_t offset = 0) const
+	size_t IndexOf(std::nullptr_t, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		return IndexOf([](const T& element) { return element == nullptr; }, offset);
+		return IndexOf([](const T& element) { return element == nullptr; }, from, to);
 	}
 
 	// Returns the index of the first element in the array that satisfies the predicate, or the array size if not found
 	template<typename Predicate>
-	size_t IndexOf(const Predicate& predicate, const size_t offset = 0) const
+	size_t IndexOf(const Predicate& predicate, const size_t from = 0, const size_t to = s_maxSize) const
 	{
-		for (size_t i = offset; i < m_size; ++i)
+		if (Size() == 0)
 		{
-			if (predicate(m_data[i]))
+			return Size();
+		}
+
+		const size_t size = (to == s_maxSize) ? Size() : to;
+		BoundsCheck(size - 1);
+		for (size_t i = from; i < size; ++i)
+		{
+			if (predicate(Data()[i]))
 			{
 				return i;
 			}
 		}
-		return m_size;
+		return Size();
 	}
 
+	// Moves the elements from the raw array
+	// Note: Remaining elements are left uninitialized.
+	virtual bool Move(T* data, const size_t size, const size_t offset = 0)
+	{
+		return CopyOrMove(data, size, Data(), Bounds(), offset, true);
+	}
+
+	// Removes all elements from the array
+	virtual bool RemoveAll() = 0;
+
 	// Replaces all occurrences of the old value in the array with the new value
-	void Replace(const T& oldValue, const T& newValue, const size_t offset = 0)
+	bool Replace(const T& oldValue, const T& newValue, const size_t from = 0, const size_t to = s_maxSize)
 	{
 		if (oldValue == newValue)
 		{
-			return;
+			return false;
 		}
 
-		Replace([&](const T& element) { return element == oldValue; }, newValue, offset);
+		return Replace([&](const T& element) { return element == oldValue; }, newValue, from, to);
+	}
+
+	// Replaces all occurrences of nullptr in the array with the new value
+	bool Replace(std::nullptr_t, const T& newValue, const size_t from = 0, const size_t to = s_maxSize)
+	{
+		if (newValue == nullptr)
+		{
+			return false;
+		}
+
+		return Replace([](const T& element) { return element == nullptr; }, newValue, from, to);
 	}
 
 	// Replaces all elements in the array that satisfy the predicate with the new value
 	template<typename Predicate>
-	void Replace(const Predicate& predicate, const T& newValue, const size_t offset = 0)
+	bool Replace(const Predicate& predicate, const T& newValue, const size_t from = 0, const size_t to = s_maxSize)
 	{
-		for (size_t i = offset; i < m_size; ++i)
+		if (Size() == 0)
 		{
-			if (predicate(m_data[i]))
+			return false;
+		}
+
+		const size_t size = (to == s_maxSize) ? Size() : to;
+		BoundsCheck(size - 1);
+		bool dirty = false;
+		for (size_t i = from; i < size; ++i)
+		{
+			if (predicate(Data()[i]))
 			{
-				m_data[i] = newValue;
+				Data()[i] = newValue;
+				dirty = true;
 			}
 		}
+		return dirty;
 	}
+
+	// Reverses the order of elements in the array
+	bool Reverse() 
+	{
+		size_t first = 0;
+		size_t last = Size() - 1;
+		while (first < last)
+		{
+			Swap(first, last);
+			++first;
+			--last;
+		}
+		return Size() > 0;
+	}
+
+	// Returns a pointer to the last element in the array that satisfies the predicate, or nullptr if not found
+	template<typename Predicate>
+	const T* ReverseFind(const Predicate& predicate, const size_t from = 0, const size_t to = s_maxSize) const
+	{
+		if (Size() == 0)
+		{
+			return nullptr;
+		}
+
+		const size_t size = (to == s_maxSize) ? Size() : to;
+		BoundsCheck(size - 1);
+		for (size_t i = size - 1; i > from; --i)
+		{
+			if (predicate(Data()[i]))
+			{
+				return &Data()[i];
+			}
+		}
+		return nullptr;
+	}
+
+	// Returns the index of the last occurrence of the given value in the array, or the array size if not found
+	size_t ReverseIndexOf(const T& value, const size_t from = 0, const size_t to = s_maxSize) const
+	{
+		return ReverseIndexOf([&](const T& element) { return element == value; }, from, to);
+	}
+
+	// Returns the index of the last occurrence of nullptr in the array, or the array size if not found
+	size_t ReverseIndexOf(std::nullptr_t, const size_t from = 0, const size_t to = s_maxSize) const
+	{
+		return ReverseIndexOf([](const T& element) { return element == nullptr; }, from, to);
+	}
+
+	// Returns the index of the last element in the array that satisfies the predicate, or the array size if not found
+	template<typename Predicate>
+	size_t ReverseIndexOf(const Predicate& predicate, const size_t from = 0, const size_t to = s_maxSize) const
+	{
+		if (Size() == 0)
+		{
+			return Size();
+		}
+
+		const size_t size = (to == s_maxSize) ? Size() : to;
+		BoundsCheck(size - 1);
+		for (size_t i = size - 1; i > from; --i)
+		{
+			if (predicate(Data()[i]))
+			{
+				return i;
+			}
+		}
+		return Size();
+	}
+
 
 	// Randomly shuffles the array using a Fisher-Yates algorithm 
 	// Note: Make sure to seed the random number generator (e.g. using srand) before calling this method to ensure proper randomness.
-	void Shuffle(const size_t offset = 0) 
+	bool Shuffle() 
 	{
-		for (size_t i = offset; i < m_size - 1; ++i)
+		for (size_t i = 0; i < Size() - 1; ++i)
 		{
-			size_t j = i + rand() % (m_size - i);
+			size_t j = i + rand() % (Size() - i);
 			Swap(i, j);
 		}
+		return Size() > 0;
 	}
 
-	// Size of the array
-	size_t Size() const
-	{
-		return m_size;
-	}
+	// Returns the size of the array
+	virtual const size_t Size() const = 0;
 
 	// Sorts the elements of the array using a quick sort algorithm in either ascending (default) or descending order
-	void Sort(const SortOrder order = SortOrder::Ascending, const size_t offset = 0, const size_t insertionSortThreshold = 10)
+	// Note: An insertion sort will be used instead for small arrays.
+	bool Sort(const SortOrder order = SortOrder::Ascending, const size_t from = 0, const size_t to = s_maxSize, const size_t insertionSortThreshold = s_defaultInsertionSortThreshold)
 	{
-		Sort([order](const T& a, const T& b) { return order == SortOrder::Ascending ? a < b : a > b; }, offset, insertionSortThreshold);
+		return Sort([order](const T& a, const T& b) { return order == SortOrder::Ascending ? a < b : a > b; }, from, to, insertionSortThreshold);
 	}
 
 	// Sorts the elements of the array using a quick sort algorithm based on the given predicate
+	// Note: An insertion sort will be used instead for small arrays.
 	template<typename Predicate>
-	void Sort(const Predicate& predicate, const size_t offset = 0, const size_t insertionSortThreshold = 10)
+	bool Sort(const Predicate& predicate, const size_t from = 0, const size_t to = s_maxSize, const size_t insertionSortThreshold = s_defaultInsertionSortThreshold)
 	{
-		QuickSort(offset, m_size - 1, predicate, insertionSortThreshold);
+		if (Size() == 0)
+		{
+			return false;
+		}
+
+		const size_t size = (to == s_maxSize) ? Size() - 1 : to;
+		BoundsCheck(size);
+		return QuickSort(predicate, from, size, insertionSortThreshold);
 	}
 
 	// Swaps the elements at the given indices
-	void Swap(const size_t index1, const size_t index2)
+	bool Swap(const size_t index1, const size_t index2)
 	{
 		if (index1 == index2)
 		{
-			return;
+			return false;
 		}
-		if (index1 >= m_size || index2 >= m_size)
+		BoundsCheck(index1);
+		BoundsCheck(index2);
+		
+		const T temp = std::move(Data()[index1]);
+		Data()[index1] = std::move(Data()[index2]);
+		Data()[index2] = std::move(temp);
+
+		return true;
+	}
+
+	static const size_t s_maxSize = std::numeric_limits<size_t>::max(); // The maximum size of the array
+
+private:
+	// Copies or moves the elements from the source array into the destination array
+	static bool CopyOrMove(T* source, const size_t sourceSize, T* destination, const size_t destinationSize, const size_t offset = 0, bool move = false)
+	{
+		if (!Equals(source, sourceSize, destination, destinationSize)) // Check for self-assignment
+		{
+			if (destinationSize < sourceSize + offset)
+			{
+				throw std::length_error("Destination array cannot be smaller than source array");
+			}
+
+			for (size_t i = 0; i < sourceSize; ++i)
+			{
+				destination[i + offset] = move ? std::move(source[i]) : source[i];
+			}
+			return sourceSize > 0;
+		}
+		return false;
+	}
+
+	// Copies or moves the elements from the source array into the destination array
+	static bool CopyOrMove(const T* source, const size_t sourceSize, T* destination, const size_t destinationSize, const size_t offset = 0)
+	{
+		return CopyOrMove(const_cast<T*>(source), sourceSize, destination, destinationSize, offset);
+	}
+
+	// Returns whether two raw arrays are equal
+	static bool Equals(const T* left, const size_t leftSize, const T* right, const size_t rightSize)
+	{
+		if (leftSize != rightSize)
+		{
+			return false;
+		}
+
+		for (size_t i = 0; i < leftSize; ++i)
+		{
+			if (left[i] != right[i])
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	// The index used for bounds checks
+	virtual size_t Bounds() const
+	{
+		return Size();
+	}
+
+	// Throws an exception if the index is out of bounds
+	void BoundsCheck(const size_t index) const
+	{
+		if (index >= Bounds())
 		{
 			throw std::out_of_range("Array index out of bounds");
 		}
-		
-		const T temp = std::move(m_data[index1]);
-		m_data[index1] = std::move(m_data[index2]);
-		m_data[index2] = std::move(temp);
 	}
 
-private:
 	// Sort helper method - sorts the array using an insertion sort algorithm
 	template<typename Predicate>
-	void InsertionSort(const size_t left, const size_t right, const Predicate& predicate)
+	bool InsertionSort(const Predicate& predicate, const size_t from, const size_t to)
 	{
+		bool dirty = false;
 		// Iterates through the array from left to right
-		for (size_t i = left + 1; i <= right; ++i)
+		for (size_t i = from + 1; i <= to; ++i)
 		{
-			const T element = m_data[i];
+			const T element = Data()[i];
 
 			size_t j = i;
 
 			// Shift lower elements to the right until the correct position for the current element is found
-			while (j > left && predicate(element, m_data[j - 1]))
+			while (j > from && predicate(element, Data()[j - 1]))
 			{
-				m_data[j] = m_data[j - 1];
+				Data()[j] = Data()[j - 1];
 				--j;
+				dirty = true;
 			}
 
 			// Insert the element in the correct position
-			m_data[j] = element;
+			Data()[j] = element;
 		}
+		return dirty;
 	}
 
 	// Sort helper method - performs a single iteration of a quick sort algorithm and returns the pivot index
 	template<typename Predicate>
-	size_t Partition(const size_t left, const size_t right, const Predicate& predicate)
+	size_t Partition(const Predicate& predicate, const size_t from, const size_t to)
 	{
 		// Sorts the left, middle, and right elements of the array (median of three method)
-		const size_t mid = (left + right) / 2;
-		if (predicate(m_data[mid], m_data[left]))
+		const size_t mid = (from + to) / 2;
+		if (predicate(Data()[mid], Data()[from]))
 		{
-			Swap(left, mid);
+			Swap(from, mid);
 		}
-		if (predicate(m_data[right], m_data[left]))
+		if (predicate(Data()[to], Data()[from]))
 		{
-			Swap(left, right);
+			Swap(from, to);
 		}
-		if (predicate(m_data[right], m_data[mid]))
+		if (predicate(Data()[to], Data()[mid]))
 		{
-			Swap(mid, right);
+			Swap(mid, to);
 		}
 
 		// Selects the middle element as the pivot element and moves it next to the end of the array
-		const T& pivotElement = m_data[mid];
-		Swap(mid, right - 1);
+		const T& pivotElement = Data()[mid];
+		Swap(mid, to - 1);
 
 		// Sorts the array so that elements smaller than the pivot element are on the left, and elements larger than the pivot element are on the right
-		size_t pivotIndex = left;
-		for (size_t i = left + 1; i < right - 1; ++i)
+		size_t pivotIndex = from;
+		for (size_t i = from + 1; i < to - 1; ++i)
 		{
-			if (predicate(m_data[i], pivotElement))
+			if (predicate(Data()[i], pivotElement))
 			{
 				++pivotIndex;
 				Swap(i, pivotIndex);
@@ -396,46 +544,61 @@ private:
 
 		// Places the pivot element in the correct position in the sorted array
 		++pivotIndex;
-		Swap(pivotIndex, right - 1);
+		Swap(pivotIndex, to - 1);
 
 		return pivotIndex;
 	}
 
 	// Sort helper method - recursively performs a quick sort algorithm until the array is sorted
 	template<typename Predicate>
-	void QuickSort(const size_t left, const size_t right, const Predicate& predicate, const size_t insertionSortThreshold = 10)
+	bool QuickSort(const Predicate& predicate, const size_t from, const size_t to, const size_t insertionSortThreshold = s_defaultInsertionSortThreshold)
 	{
 		// Checks if the indices to be sorted are valid and that there is more than 1 element in the array
-		if (right <= left || right >= m_size)
+		if (to <= from || to >= Size())
 		{
-			return;
+			return false;
 		}
 
 		// If there are only two elements, just compare and swap
-		if (right - left == 1)
+		if (to - from == 1)
 		{
-			if (predicate(m_data[right], m_data[left]))
+			if (predicate(Data()[to], Data()[from]))
 			{
-				Swap(left, right);
+				Swap(from, to);
+				return true;
 			}
-			return;
+			return false;
 		}
 
 		// If the number of elements is less than the threshold, performs an insertion sort instead to save on recursion overhead
-		if (right - left < insertionSortThreshold)
+		if (to - from < insertionSortThreshold)
 		{
-			InsertionSort(left, right, predicate);
-			return;
+			return InsertionSort(predicate, from, to);
 		}
 
 		// Partitions the array into two sub-arrays on either side of a pivot index
-		const size_t pivot = Partition(left, right, predicate);
+		const size_t pivot = Partition(predicate, from, to);
 
 		// Recursively sorts each sub-array
-		QuickSort(left, pivot - 1, predicate);
-		QuickSort(pivot + 1, right, predicate);
+		QuickSort(predicate, from, pivot - 1);
+		QuickSort(predicate, pivot + 1, to);
+
+		return true;
 	}
 
-	T* m_data; // Pointer to the first element of the array
-	size_t m_size; // Size of the array
+	static const size_t s_defaultInsertionSortThreshold = 10; // By default, an insertion sort will be performed if the array size is less than this threshold
 };
+
+// Equality operator with c-style array
+template <typename T, size_t N>
+bool operator==(const T(&left)[N], const Array<T>& right)
+{
+	return right == left;
+}
+
+// Inequality operator with c-style array
+template <typename T, size_t N>
+bool operator!=(const T(&left)[N], const Array<T>& right)
+{
+	return !(right == left);
+}
