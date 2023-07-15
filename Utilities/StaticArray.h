@@ -53,8 +53,7 @@ public:
 		if (N > size)
 		{
 			Fill(T{}, size); // Fills remaining elements with default values
-		}
-		
+		}	
 	}
 
 	// Conversion copy/move constructor from raw array

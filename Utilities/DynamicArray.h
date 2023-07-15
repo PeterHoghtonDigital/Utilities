@@ -366,7 +366,7 @@ public:
 	// Removes all duplicate elements from the array
 	bool RemoveDuplicates()
 	{
-		DynamicArray<T> result;
+		DynamicArray<T> result(m_size);
 
 		for (size_t i = 0; i < m_size; ++i)
 		{
