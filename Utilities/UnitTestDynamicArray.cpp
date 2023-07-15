@@ -434,9 +434,6 @@ namespace UnitTests
 			Test() = default;
 			Test(int first, int second) : m_first(first), m_second(second) {}
 
-			bool operator==(const Test&) const = default;
-			bool operator!=(const Test&) const = default;
-
 			int m_first;
 			int m_second;
 		};

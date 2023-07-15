@@ -21,7 +21,7 @@ class DynamicArray : public Array<T>
 {
 public:
 	using Array<T>::Contains;
-	using Array<T>::s_maxSize;
+	using Array<T>::MaxSize;
 
 	// Default constructor
 	DynamicArray() : DynamicArray(0) {}
@@ -202,11 +202,8 @@ public:
 	// Note: Remaining elements are left uninitialized.
 	bool Copy(const T* data, const size_t size, const size_t offset = 0) override
 	{
-		if (m_data == nullptr)
-		{
-			Init(m_capacity);
-		}
-		return Array<T>::Copy(data, size, offset);
+		const bool dirty = PreCopyOrMove(size, offset);
+		return Array<T>::Copy(data, size, offset) || dirty;
 	}
 
 	// Returns a pointer to the first element of the array
@@ -239,7 +236,7 @@ public:
 
 	// Fills the array with the given value
 	// Note: Remaining elements are left uninitialized.
-	bool Fill(const T& value = T{}, const size_t from = 0, const size_t to = s_maxSize) override
+	bool Fill(const T& value = T{}, const size_t from = 0, const size_t to = MaxSize()) override
 	{
 		if (m_data == nullptr)
 		{
@@ -299,11 +296,8 @@ public:
 	// Note: Remaining elements are left uninitialized.
 	bool Move(T* data, const size_t size, const size_t offset = 0) override
 	{
-		if (m_data == nullptr)
-		{
-			Init(m_capacity);
-		}
-		return Array<T>::Move(data, size, offset);
+		const bool dirty = PreCopyOrMove(size, offset);
+		return Array<T>::Move(data, size, offset) || dirty;
 	}
 
 	// Removes all occurrences of the given value from the array
@@ -467,7 +461,7 @@ private:
 	// Grows the array from the specified index if necessary
 	bool Grow(const size_t index, const size_t amount = 1)
 	{
-		if (m_data == nullptr)
+		if (m_data == nullptr && m_capacity > 0)
 		{
 			Init(new T[m_capacity], m_size, m_capacity);
 		}
@@ -498,6 +492,28 @@ private:
 		m_data = data;
 		m_size = size;
 		m_capacity = capacity;
+	}
+
+	// Initializes and/or resizes the array prior to a copy/move if necessary
+	bool PreCopyOrMove(const size_t size, const size_t offset = 0)
+	{
+		bool dirty = false;
+		if (offset + size > m_capacity)
+		{
+			Resize(offset + size);
+			dirty = true;
+		}
+		if (offset + size > m_size)
+		{
+			m_size = offset + size;
+			dirty = true;
+		}
+		if (m_data == nullptr && m_size > 0)
+		{
+			m_data = new T[m_size];
+			dirty = true;
+		}
+		return dirty;
 	}
 
 	// Shrinks the array if necessary

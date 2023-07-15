@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
@@ -368,7 +369,7 @@ public:
 
 	// Randomly shuffles the array using a Fisher-Yates algorithm 
 	// Note: Make sure to seed the random number generator (e.g. using srand) before calling this method to ensure proper randomness.
-	bool Shuffle() 
+	bool Shuffle()
 	{
 		for (size_t i = 0; i < Size() - 1; ++i)
 		{
@@ -412,7 +413,7 @@ public:
 		}
 		BoundsCheck(index1);
 		BoundsCheck(index2);
-		
+
 		const T temp = std::move(Data()[index1]);
 		Data()[index1] = std::move(Data()[index2]);
 		Data()[index2] = std::move(temp);
@@ -420,7 +421,12 @@ public:
 		return true;
 	}
 
-	static const size_t s_maxSize = std::numeric_limits<size_t>::max(); // The maximum size of the array
+protected:
+	// Returns the maximum size of the array
+	static const size_t MaxSize()
+	{
+		return s_maxSize;
+	}
 
 private:
 	// Copies or moves the elements from the source array into the destination array
@@ -456,15 +462,21 @@ private:
 			return false;
 		}
 
-		for (size_t i = 0; i < leftSize; ++i)
+		if constexpr (std::equality_comparable<T>)
 		{
-			if (left[i] != right[i])
+			for (size_t i = 0; i < leftSize; ++i)
 			{
-				return false;
+				if (left[i] != right[i])
+				{
+					return false;
+				}
 			}
+			return true;
 		}
-
-		return true;
+		else
+		{
+			return std::memcmp(left, right, leftSize * sizeof(T)) == 0;
+		}
 	}
 
 	// The index used for bounds checks
@@ -587,6 +599,7 @@ private:
 	}
 
 	static const size_t s_defaultInsertionSortThreshold = 10; // By default, an insertion sort will be performed if the array size is less than this threshold
+	static const size_t s_maxSize = std::numeric_limits<size_t>::max(); // The maximum size of the array
 };
 
 // Equality operator with c-style array
