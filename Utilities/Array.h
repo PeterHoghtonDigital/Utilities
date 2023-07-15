@@ -423,7 +423,7 @@ public:
 
 protected:
 	// Returns the maximum size of the array
-	static const size_t MaxSize()
+	static constexpr size_t MaxSize()
 	{
 		return s_maxSize;
 	}
@@ -598,8 +598,8 @@ private:
 		return true;
 	}
 
-	static const size_t s_defaultInsertionSortThreshold = 10; // By default, an insertion sort will be performed if the array size is less than this threshold
-	static const size_t s_maxSize = std::numeric_limits<size_t>::max(); // The maximum size of the array
+	static constexpr size_t s_defaultInsertionSortThreshold = 10; // By default, an insertion sort will be performed if the array size is less than this threshold
+	static constexpr size_t s_maxSize = std::numeric_limits<size_t>::max(); // The maximum size of the array
 };
 
 // Equality operator with c-style array

@@ -238,11 +238,9 @@ public:
 	// Note: Remaining elements are left uninitialized.
 	bool Fill(const T& value = T{}, const size_t from = 0, const size_t to = MaxSize()) override
 	{
-		if (m_data == nullptr)
-		{
-			Init(m_capacity);
-		}
-		return Array<T>::Fill(value, from, to);
+		const size_t size = (to == MaxSize()) ? m_capacity : to;
+		const bool dirty = PreCopyOrMove(size - from, from);
+		return Array<T>::Fill(value, from, to) || dirty;
 	}
 
 	// Inserts an element at the specified index
@@ -443,8 +441,7 @@ private:
 	// Concatenates the two arrays and returns the result
 	static DynamicArray<T> Concatenate(const T* left, const size_t leftSize, const T* right, const size_t rightSize)
 	{
-		DynamicArray<T> result;
-		result.Init(leftSize + rightSize);
+		DynamicArray<T> result(leftSize + rightSize);
 
 		result.Copy(left, leftSize);
 		result.Copy(right, rightSize, leftSize);
@@ -508,9 +505,9 @@ private:
 			m_size = offset + size;
 			dirty = true;
 		}
-		if (m_data == nullptr && m_size > 0)
+		if (m_data == nullptr && m_capacity > 0)
 		{
-			m_data = new T[m_size];
+			m_data = new T[m_capacity];
 			dirty = true;
 		}
 		return dirty;
