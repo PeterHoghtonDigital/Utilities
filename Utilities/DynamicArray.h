@@ -17,9 +17,10 @@
 #include "Array.h"
 
 template <typename T>
-class DynamicArray : public Array<T>
+class DynamicArray final : public Array<T>
 {
 public:
+	using Array<T>::BoundsCheck;
 	using Array<T>::Contains;
 	using Array<T>::MaxSize;
 
@@ -384,14 +385,14 @@ public:
 	// Remove the elements within the specified range from the array
 	bool RemoveRange(const size_t from, const size_t to)
 	{
-		if (to > m_size || from > to)
-		{
-			throw std::out_of_range("Array index out of bounds");
-		}
+		BoundsCheck(from);
+		BoundsCheck(to);
+
 		size_t count = to - from + 1;	
-		if (count > 0)
+		if (count > 0 && from < m_size)
 		{
-			for (size_t i = to + 1; i < m_size; ++i)
+			count = (count < m_size - from) ? count : m_size - from;
+			for (size_t i = from + count; i < m_size; ++i)
 			{
 				m_data[i - count] = m_data[i];
 			}

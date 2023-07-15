@@ -129,8 +129,10 @@ public:
 			return 0;
 		}
 
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Size() : to;
 		BoundsCheck(size - 1);
+
 		size_t count = 0;
 		for (size_t i = from; i < size; ++i)
 		{
@@ -180,8 +182,10 @@ public:
 			return false;
 		}
 
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Bounds() : to;
 		BoundsCheck(size - 1);
+
 		for (size_t i = from; i < size; ++i)
 		{
 			Data()[i] = value;
@@ -198,8 +202,10 @@ public:
 			return nullptr;
 		}
 
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Size() : to;
 		BoundsCheck(size - 1);
+
 		for (size_t i = from; i < size; ++i)
 		{
 			if (predicate(Data()[i]))
@@ -231,8 +237,10 @@ public:
 			return Size();
 		}
 
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Size() : to;
 		BoundsCheck(size - 1);
+
 		for (size_t i = from; i < size; ++i)
 		{
 			if (predicate(Data()[i]))
@@ -283,9 +291,11 @@ public:
 		{
 			return false;
 		}
-
+		
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Size() : to;
 		BoundsCheck(size - 1);
+
 		bool dirty = false;
 		for (size_t i = from; i < size; ++i)
 		{
@@ -321,8 +331,10 @@ public:
 			return nullptr;
 		}
 
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Size() : to;
 		BoundsCheck(size - 1);
+
 		for (size_t i = size - 1; i > from; --i)
 		{
 			if (predicate(Data()[i]))
@@ -354,8 +366,10 @@ public:
 			return Size();
 		}
 
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Size() : to;
 		BoundsCheck(size - 1);
+
 		for (size_t i = size - 1; i > from; --i)
 		{
 			if (predicate(Data()[i]))
@@ -399,8 +413,10 @@ public:
 			return false;
 		}
 
+		BoundsCheck(from);
 		const size_t size = (to == s_maxSize) ? Size() - 1 : to;
 		BoundsCheck(size);
+
 		return QuickSort(predicate, from, size, insertionSortThreshold);
 	}
 
@@ -426,6 +442,15 @@ protected:
 	static constexpr size_t MaxSize()
 	{
 		return s_maxSize;
+	}
+
+	// Throws an exception if the index is out of bounds
+	void BoundsCheck(const size_t index) const
+	{
+		if (index >= Bounds())
+		{
+			throw std::out_of_range("Array index out of bounds");
+		}
 	}
 
 private:
@@ -483,15 +508,6 @@ private:
 	virtual size_t Bounds() const
 	{
 		return Size();
-	}
-
-	// Throws an exception if the index is out of bounds
-	void BoundsCheck(const size_t index) const
-	{
-		if (index >= Bounds())
-		{
-			throw std::out_of_range("Array index out of bounds");
-		}
 	}
 
 	// Sort helper method - sorts the array using an insertion sort algorithm

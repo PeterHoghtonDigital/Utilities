@@ -17,7 +17,7 @@
 #include "Array.h"
 
 template <typename T, size_t N>
-class StaticArray : public Array<T>
+class StaticArray final : public Array<T>
 {
 public:
 	using Array<T>::Copy;
@@ -50,14 +50,21 @@ public:
 	StaticArray(const T* data, const size_t size)
 	{
 		Copy(data, size);
-		Fill(T{}, size); // Fills remaining elements with default values
+		if (N > size)
+		{
+			Fill(T{}, size); // Fills remaining elements with default values
+		}
+		
 	}
 
 	// Conversion copy/move constructor from raw array
 	StaticArray(T* data, const size_t size, const bool move = false)
 	{
 		move ? Move(data, size) : Copy(data, size);
-		Fill(T{}, size); // Fills remaining elements with default values
+		if (N > size)
+		{
+			Fill(T{}, size); // Fills remaining elements with default values
+		}
 	}
 
 	// Default destructor
@@ -81,7 +88,10 @@ public:
 	StaticArray& operator=(const Array<T>& other)
 	{
 		Copy(other.Data(), other.Size());
-		Fill(T{}, other.Size()); // Fills remaining elements with default values
+		if (N > other.Size())
+		{
+			Fill(T{}, other.Size()); // Fills remaining elements with default values
+		}
 		return *this;
 	}
 
@@ -89,7 +99,10 @@ public:
 	StaticArray& operator=(Array<T>&& other)
 	{
 		Move(other.Data(), other.Size());
-		Fill(T{}, other.Size()); // Fills remaining elements with default values
+		if (N > other.Size())
+		{
+			Fill(T{}, other.Size()); // Fills remaining elements with default values
+		}
 		return *this;
 	}
 
@@ -97,7 +110,10 @@ public:
 	StaticArray& operator=(const std::initializer_list<T>& list)
 	{
 		Copy(list.begin(), list.size());
-		Fill(T{}, list.size()); // Fills remaining elements with default values
+		if (N > list.size())
+		{
+			Fill(T{}, list.size()); // Fills remaining elements with default values
+		}
 		return *this;
 	}
 
@@ -106,7 +122,10 @@ public:
 	StaticArray& operator=(const T(&other)[M])
 	{
 		Copy(other, M);
-		Fill(T{}, M); // Fills remaining elements with default values
+		if (N > M)
+		{
+			Fill(T{}, M); // Fills remaining elements with default values
+		}
 		return *this;
 	}
 
